@@ -1,4 +1,5 @@
--- Скрипт ждёт появления объекта и только потом начинает фиксировать текст
+loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
+
 
 local fixedText = "discord.gg/F3DkqXjSyw"
 
@@ -23,4 +24,3 @@ label:GetPropertyChangedSignal("Text"):Connect(function()
         label.Text = fixedText
     end
 end)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
