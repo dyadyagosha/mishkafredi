@@ -1,12 +1,13 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/VapeVoidware/VW-Add/main/nightsintheforest.lua", true))()
-
-
 local fixedText = "discord.gg/F3DkqXjSyw"
 
+-- Получаем PlayerGui вместо CoreGui
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
 -- Пошаговое ожидание каждого уровня
-local CoreGui = game:GetService("CoreGui")
-local HUI = CoreGui:WaitForChild("HUI")
-local WindUI = HUI:WaitForChild("WindUI")
+local WindUI = PlayerGui:WaitForChild("WindUI")
 local Window = WindUI:WaitForChild("Window")
 local Frame = Window:WaitForChild("Frame")
 local Main = Frame:WaitForChild("Main")
@@ -25,16 +26,9 @@ label:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- Полный скрипт
-local CoreGui = game:GetService("CoreGui")
-
--- Ждём пока появится HUI
-repeat task.wait() until CoreGui:FindFirstChild("HUI")
-local HUI = CoreGui:WaitForChild("HUI")
-
--- Поиск карточки по заголовку "Join Discord Server"
+-- Функция поиска карточки по заголовку "Join Discord Server"
 local function findJoinCard()
-    for _, scroller in ipairs(HUI:GetDescendants()) do
+    for _, scroller in ipairs(WindUI:GetDescendants()) do
         if scroller:IsA("ScrollingFrame") then
             for _, card in ipairs(scroller:GetChildren()) do
                 if card:IsA("Frame") then
@@ -50,7 +44,7 @@ local function findJoinCard()
     end
     -- запасной путь — индексы
     local ok, card = pcall(function()
-        return CoreGui.HUI.WindUI.Window.Frame.Main:GetChildren()[3].Frame.ScrollingFrame:GetChildren()[5]
+        return WindUI.Window.Frame.Main:GetChildren()[3].Frame.ScrollingFrame:GetChildren()[5]
     end)
     if ok and card then return card, card.Parent end
 end
@@ -77,6 +71,7 @@ local function attachHandler(frame, handler)
     end
 end
 
+-- Замена карточки
 local function replaceJoinWithMyButton()
     local old, scroller = nil, nil
     repeat
@@ -87,7 +82,7 @@ local function replaceJoinWithMyButton()
     local new = old:Clone()
     new.Name = "MyCustomButton"
 
-    -- Фиксируем размеры, чтобы не появлялись лишние зазоры
+    -- Фиксируем размеры
     new.Size = old.Size
     new.LayoutOrder = old.LayoutOrder
     new.AutomaticSize = Enum.AutomaticSize.None
@@ -120,9 +115,9 @@ replaceJoinWithMyButton()
 -- Автовосстановление при пересборке GUI
 task.spawn(function()
     while task.wait(1) do
-        if not CoreGui:FindFirstChild("HUI") then break end
+        if not PlayerGui:FindFirstChild("WindUI") then break end
         local exists = false
-        for _, d in ipairs(HUI:GetDescendants()) do
+        for _, d in ipairs(WindUI:GetDescendants()) do
             if d:IsA("Frame") and d.Name == "MyCustomButton" then
                 exists = true; break
             end
