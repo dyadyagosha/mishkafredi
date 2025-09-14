@@ -14,7 +14,7 @@ local Main = Frame:WaitForChild("Main")
 local Topbar = Main:WaitForChild("Topbar")
 local Left = Topbar:WaitForChild("Left")
 local Title = Left:WaitForChild("Title")
-local label = Title:WaitForChild("TextLabel")
+local label = Title:WaitForChild("Author")
 
 -- Устанавливаем текст один раз
 label.Text = fixedText
