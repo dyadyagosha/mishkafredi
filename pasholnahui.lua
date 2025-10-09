@@ -1056,8 +1056,7 @@ local function startCampfireLoop()
                     end
                     
                     if not fuelIncreased then
-                        showNotification("⚠️ Нет предметов для розжига!", 3)
-                        print("Нет подходящих предметов для розжига. Повторная проверка через 5 секунд...")
+                        showNotification("⚠️ No items for kindling!", 3)
                         task.wait(5)
                     end
                 end
@@ -2398,29 +2397,62 @@ knobCorner.Parent = knob
 
 -- Логика
 local sliderActive = false
+local UserInputService = game:GetService("UserInputService")
 
-bar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+-- Создаём невидимую расширенную область для лучшего захвата
+local expandedKillHitbox = Instance.new("Frame")
+expandedKillHitbox.Size = UDim2.new(1, 40, 1, 40) -- Расширяем на 40 пикселей со всех сторон
+expandedKillHitbox.Position = UDim2.new(0, -20, 0, -20) -- Смещаем чтобы центрировать
+expandedKillHitbox.BackgroundTransparency = 1
+expandedKillHitbox.Parent = bar
+
+-- Обработчики для расширенной области
+expandedKillHitbox.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
         sliderActive = true
     end
 end)
 
-bar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+-- Глобальное отслеживание завершения ввода
+local killInputEndedConnection
+killInputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
         sliderActive = false
+    end
+end)
+
+-- Переменная для хранения последней позиции касания
+local lastKillTouchPosition = nil
+
+UserInputService.TouchMoved:Connect(function(touch, gameProcessed)
+    if sliderActive then
+        lastKillTouchPosition = touch.Position
     end
 end)
 
 game:GetService("RunService").RenderStepped:Connect(function()
     if sliderActive then
-        local mouse = game:GetService("Players").LocalPlayer:GetMouse()
-        local relX = math.clamp((mouse.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+        local posX
+        
+        -- Получаем позицию касания/мыши
+        if UserInputService.TouchEnabled and lastKillTouchPosition then
+            -- Для мобильных - используем сохранённую позицию касания
+            posX = lastKillTouchPosition.X
+        else
+            -- Для ПК - используем мышь
+            local mouse = game:GetService("Players").LocalPlayer:GetMouse()
+            posX = mouse.X
+        end
+        
+        local relX = math.clamp((posX - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
         local value = math.floor(relX * killSettings.maxRadius)
-
+        
         -- Сохраняем значение
         _G.KillRadius = value
         killSettings.radius = value
-
+        
         -- Обновляем визуальные элементы
         fill.Size = UDim2.new(relX, 0, 1, 0)
         knob.Position = UDim2.new(relX, -6, 0, -3)
