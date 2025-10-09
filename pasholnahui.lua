@@ -1248,35 +1248,56 @@ knobCorner.Parent = knob
 
 -- Логика
 local sliderActive = false
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local player = game:GetService("Players").LocalPlayer
+local mouse = player:GetMouse()
 
+-- Активация ползунка
 bar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        sliderActive = true
-    end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliderActive = true
+	end
 end)
 
+-- Отключение ползунка
 bar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        sliderActive = false
-    end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		sliderActive = false
+	end
 end)
 
-game:GetService("RunService").RenderStepped:Connect(function()
-    if sliderActive then
-        local mouse = game:GetService("Players").LocalPlayer:GetMouse()
-        local relX = math.clamp((mouse.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-        local percentage = math.floor(relX * 100)
-
-        -- Сохраняем в _G и отправляем в campfireSettings
-        _G.CampfireThreshold = percentage
-        campfireSettings.threshold = percentage
-
-        -- Обновляем визуальные элементы
-        fill.Size = UDim2.new(relX, 0, 1, 0)
-        knob.Position = UDim2.new(relX, -6, 0, -3)
-        thresholdLabel.Text = tostring(percentage)
-    end
+-- На случай, если палец ушёл за пределы бара
+userInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch then
+		sliderActive = false
+	end
 end)
+
+-- Обновление положения
+runService.RenderStepped:Connect(function()
+	if sliderActive then
+		local x
+		if userInputService.TouchEnabled and #userInputService:GetTouches() > 0 then
+			x = userInputService:GetTouches()[1].Position.X
+		else
+			x = mouse.X
+		end
+
+		local relX = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+		local percentage = math.floor(relX * 100)
+
+		-- Сохраняем значение
+		_G.CampfireThreshold = percentage
+		campfireSettings.threshold = percentage
+
+		-- Обновляем визуальные элементы
+		fill.Size = UDim2.new(relX, 0, 1, 0)
+		knob.Position = UDim2.new(relX, -6, 0, -3)
+		thresholdLabel.Text = tostring(percentage)
+	end
+end)
+
 
 -- ========== СПИСОК РАЗРЕШЁННЫХ ПРЕДМЕТОВ ==========
 
