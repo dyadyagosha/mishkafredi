@@ -1271,14 +1271,23 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
+-- Переменная для хранения последней позиции касания
+local lastTouchPosition = nil
+
+UserInputService.TouchMoved:Connect(function(touch, gameProcessed)
+    if sliderActive then
+        lastTouchPosition = touch.Position
+    end
+end)
+
 game:GetService("RunService").RenderStepped:Connect(function()
     if sliderActive then
         local posX
         
         -- Получаем позицию касания/мыши
-        if UserInputService.TouchEnabled and #UserInputService:GetTouchPositions() > 0 then
-            -- Для мобильных - берём первое касание
-            posX = UserInputService:GetTouchPositions()[1].X
+        if UserInputService.TouchEnabled and lastTouchPosition then
+            -- Для мобильных - используем сохранённую позицию касания
+            posX = lastTouchPosition.X
         else
             -- Для ПК - используем мышь
             local mouse = game:GetService("Players").LocalPlayer:GetMouse()
