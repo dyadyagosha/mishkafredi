@@ -1250,23 +1250,25 @@ knobCorner.Parent = knob
 local sliderActive = false
 local UserInputService = game:GetService("UserInputService")
 
-bar.InputBegan:Connect(function(input)
+-- Создаём невидимую расширенную область для лучшего захвата
+local expandedHitbox = Instance.new("Frame")
+expandedHitbox.Size = UDim2.new(1, 40, 1, 40) -- Расширяем на 40 пикселей со всех сторон
+expandedHitbox.Position = UDim2.new(0, -20, 0, -20) -- Смещаем чтобы центрировать
+expandedHitbox.BackgroundTransparency = 1
+expandedHitbox.Parent = bar
+
+-- Обработчики для расширенной области
+expandedHitbox.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or 
        input.UserInputType == Enum.UserInputType.Touch then
         sliderActive = true
     end
 end)
 
-bar.InputEnded:Connect(function(input)
+-- Глобальное отслеживание завершения ввода
+UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or 
        input.UserInputType == Enum.UserInputType.Touch then
-        sliderActive = false
-    end
-end)
-
--- Также отслеживаем глобальное завершение ввода (если палец ушёл с экрана)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
         sliderActive = false
     end
 end)
@@ -1277,6 +1279,12 @@ local lastTouchPosition = nil
 UserInputService.TouchMoved:Connect(function(touch, gameProcessed)
     if sliderActive then
         lastTouchPosition = touch.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if sliderActive and input.UserInputType == Enum.UserInputType.MouseMovement then
+        -- Обновляем позицию мыши в реальном времени
     end
 end)
 
