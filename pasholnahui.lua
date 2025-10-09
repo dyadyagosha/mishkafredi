@@ -1264,33 +1264,38 @@ bar.InputEnded:Connect(function(input)
     end
 end)
 
+-- Также отслеживаем глобальное завершение ввода (если палец ушёл с экрана)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        sliderActive = false
+    end
+end)
+
 game:GetService("RunService").RenderStepped:Connect(function()
     if sliderActive then
-        local relX
+        local posX
         
-        -- Проверяем тип устройства
-        if UserInputService.TouchEnabled then
-            -- Для мобильных устройств
-            local touch = UserInputService:GetTouchPosition(1)
-            if touch then
-                relX = math.clamp((touch.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-            end
+        -- Получаем позицию касания/мыши
+        if UserInputService.TouchEnabled and #UserInputService:GetTouchPositions() > 0 then
+            -- Для мобильных - берём первое касание
+            posX = UserInputService:GetTouchPositions()[1].X
         else
-            -- Для ПК
+            -- Для ПК - используем мышь
             local mouse = game:GetService("Players").LocalPlayer:GetMouse()
-            relX = math.clamp((mouse.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+            posX = mouse.X
         end
         
-        if relX then
-            local percentage = math.floor(relX * 100)
-            -- Сохраняем в _G и отправляем в campfireSettings
-            _G.CampfireThreshold = percentage
-            campfireSettings.threshold = percentage
-            -- Обновляем визуальные элементы
-            fill.Size = UDim2.new(relX, 0, 1, 0)
-            knob.Position = UDim2.new(relX, -6, 0, -3)
-            thresholdLabel.Text = tostring(percentage)
-        end
+        local relX = math.clamp((posX - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+        local percentage = math.floor(relX * 100)
+        
+        -- Сохраняем в _G и отправляем в campfireSettings
+        _G.CampfireThreshold = percentage
+        campfireSettings.threshold = percentage
+        
+        -- Обновляем визуальные элементы
+        fill.Size = UDim2.new(relX, 0, 1, 0)
+        knob.Position = UDim2.new(relX, -6, 0, -3)
+        thresholdLabel.Text = tostring(percentage)
     end
 end)
 
