@@ -2886,42 +2886,104 @@ end
 
 	-- Логика слайдера
 	local dragging = false
+	local activeInputId = nil
+	local lastTouchPosition = nil
+
+	-- Увеличиваем зону захвата, чтобы удобно было на мобильных
+	local expandedHitbox = Instance.new("Frame")
+	expandedHitbox.Size = UDim2.new(1, 40, 1, 40)
+	expandedHitbox.Position = UDim2.new(0, -20, 0, -20)
+	expandedHitbox.BackgroundTransparency = 1
+	expandedHitbox.ZIndex = bar.ZIndex - 1 -- чтобы не мешал кликам
+	expandedHitbox.Parent = bar
+
+	-- Функция обновления ползунка
 	local function updateSlider(x)
+		if not bar or bar.AbsoluteSize.X == 0 then return end
+
 		local pos = bar.AbsolutePosition.X
 		local size = bar.AbsoluteSize.X
-		local pct = math.clamp((x - pos)/size, 0, 1)
+		local pct = math.clamp((x - pos) / size, 0, 1)
+
 		_G.FogTransparencyValue = pct
 		fill.Size = UDim2.new(pct, 0, 1, 0)
 		knob.Position = UDim2.new(pct, -6, 0.5, -6)
-		label.Text = tostring(math.floor(pct*100)).."%"
+		label.Text = tostring(math.floor(pct * 100)) .. "%"
+
 		setFogTransparency(pct)
 	end
 
-	bar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 and not _G.FogRemoved then
+	-- Начало перетаскивания
+	local function beginDrag(input)
+		if _G.FogRemoved then return end
+		local t = input.UserInputType
+
+		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			dragging = true
-			ContentScroll.ScrollingEnabled = false
-			updateSlider(input.Position.X)
-		end
-	end)
+			if ContentScroll then
+				ContentScroll.ScrollingEnabled = false
+			end
 
-	knob.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 and not _G.FogRemoved then
-			dragging = true
-			ContentScroll.ScrollingEnabled = false
+			if t == Enum.UserInputType.Touch then
+				activeInputId = input.UserInputId
+				lastTouchPosition = input.Position
+				updateSlider(input.Position.X)
+			else
+				activeInputId = nil
+				local x = (input.Position and input.Position.X) or Player:GetMouse().X
+				updateSlider(x)
+			end
 		end
-	end)
+	end
 
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			updateSlider(input.Position.X)
-		end
-	end)
+	-- Привязываем начало к bar, knob и expandedHitbox
+	for _, obj in ipairs({bar, knob, expandedHitbox}) do
+		obj.InputBegan:Connect(beginDrag)
+	end
 
+	-- Завершение перетаскивания
 	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
-			dragging = false
-			ContentScroll.ScrollingEnabled = true
+		if input.UserInputType == Enum.UserInputType.Touch then
+			if activeInputId == nil or input.UserInputId == activeInputId then
+				dragging = false
+				activeInputId = nil
+				lastTouchPosition = nil
+				if ContentScroll then
+					ContentScroll.ScrollingEnabled = true
+				end
+			end
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+			if dragging then
+				dragging = false
+				activeInputId = nil
+				lastTouchPosition = nil
+				if ContentScroll then
+					ContentScroll.ScrollingEnabled = true
+				end
+			end
+		end
+	end)
+
+	-- При движении пальца сохраняем позицию
+	UserInputService.TouchMoved:Connect(function(touch)
+		if dragging and activeInputId and touch.UserInputId == activeInputId then
+			lastTouchPosition = touch.Position
+		end
+	end)
+
+	-- Постоянное обновление позиции во время перетаскивания
+	RunService.RenderStepped:Connect(function()
+		if not dragging then return end
+
+		local posX
+		if UserInputService.TouchEnabled and lastTouchPosition then
+			posX = lastTouchPosition.X
+		else
+			posX = Player:GetMouse().X
+		end
+
+		if posX then
+			updateSlider(posX)
 		end
 	end)
 
@@ -2934,6 +2996,12 @@ end
 			fill.BackgroundColor3 = Color3.fromRGB(180,180,180)
 			knob.BackgroundColor3 = Color3.fromRGB(150,150,150)
 			label.Text = "Deleted"
+			dragging = false
+			activeInputId = nil
+			lastTouchPosition = nil
+			if ContentScroll then
+				ContentScroll.ScrollingEnabled = true
+			end
 		end
 	end)
 end
