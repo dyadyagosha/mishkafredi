@@ -4091,60 +4091,117 @@ end
     
     -- WalkSpeed Logic
     local minSpeed, maxSpeed = 16, 100
-    local currentSpeed = _G.WalkSpeedValue or 16
-    _G.WalkSpeedValue = currentSpeed
-    local draggingSpeed = false
-    
-    local function updateSlider(x)
-        local pos = bar.AbsolutePosition.X
-        local size = bar.AbsoluteSize.X
-        local pct = math.clamp((x - pos) / size, 0, 1)
-        fill.Size = UDim2.new(pct, 0, 1, 0)
-        knob.Position = UDim2.new(pct, -6, 0, -3)
-        currentSpeed = math.floor(minSpeed + (maxSpeed - minSpeed) * pct)
-        speedLabel.Text = tostring(currentSpeed)
-        _G.WalkSpeedValue = currentSpeed
-        local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = currentSpeed end
-    end
-    
-    local initialPct = (currentSpeed - minSpeed) / (maxSpeed - minSpeed)
-    fill.Size = UDim2.new(initialPct, 0, 1, 0)
-    knob.Position = UDim2.new(initialPct, -6, 0, -3)
-    
-    local wsConnection = RunService.Heartbeat:Connect(function()
-        local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and _G.WalkSpeedValue < 29 then
-			hum.WalkSpeed = 29
-		elseif hum and hum.WalkSpeed ~= _G.WalkSpeedValue then
-            hum.WalkSpeed = _G.WalkSpeedValue	
-        end
-    end)
-    
-    bar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            draggingSpeed = true
-            updateSlider(input.Position.X)
-        end
-    end)
-    
-    knob.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            draggingSpeed = true
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if draggingSpeed and input.UserInputType == Enum.UserInputType.MouseMovement then
-            updateSlider(input.Position.X)
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and draggingSpeed then
-            draggingSpeed = false
-        end
-    end)
+	local currentSpeed = _G.WalkSpeedValue or 16
+	_G.WalkSpeedValue = currentSpeed
+
+	local dragging = false
+	local activeInputId = nil
+	local lastTouchPosition = nil
+
+	-- Расширяем область для удобного захвата
+	local expandedHitbox = Instance.new("Frame")
+	expandedHitbox.Size = UDim2.new(1, 40, 1, 40)
+	expandedHitbox.Position = UDim2.new(0, -20, 0, -20)
+	expandedHitbox.BackgroundTransparency = 1
+	expandedHitbox.Parent = bar
+
+	-- Функция обновления слайдера
+	local function updateSlider(x)
+		if not bar or bar.AbsoluteSize.X == 0 then return end
+
+		local pos = bar.AbsolutePosition.X
+		local size = bar.AbsoluteSize.X
+		local pct = math.clamp((x - pos) / size, 0, 1)
+
+		fill.Size = UDim2.new(pct, 0, 1, 0)
+		knob.Position = UDim2.new(pct, -6, 0, -3)
+
+		currentSpeed = math.floor(minSpeed + (maxSpeed - minSpeed) * pct)
+		speedLabel.Text = tostring(currentSpeed)
+		_G.WalkSpeedValue = currentSpeed
+
+		local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum.WalkSpeed = currentSpeed
+		end
+	end
+
+	-- Устанавливаем начальное положение
+	local initialPct = (currentSpeed - minSpeed) / (maxSpeed - minSpeed)
+	fill.Size = UDim2.new(initialPct, 0, 1, 0)
+	knob.Position = UDim2.new(initialPct, -6, 0, -3)
+
+	-- Принудительно поддерживаем WalkSpeed, и учитываем Shift
+	local wsConnection = RunService.Heartbeat:Connect(function()
+		local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and _G.WalkSpeedValue < 29 then
+				hum.WalkSpeed = 29
+			elseif hum.WalkSpeed ~= _G.WalkSpeedValue then
+				hum.WalkSpeed = _G.WalkSpeedValue
+			end
+		end
+	end)
+
+-- Начало перетаскивания
+local function beginDrag(input)
+	local t = input.UserInputType
+	if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+		dragging = true
+
+		if t == Enum.UserInputType.Touch then
+			activeInputId = input.UserInputId
+			lastTouchPosition = input.Position
+			updateSlider(input.Position.X)
+		else
+			activeInputId = nil
+			local x = (input.Position and input.Position.X) or Player:GetMouse().X
+			updateSlider(x)
+		end
+	end
+end
+
+-- Окончание перетаскивания (глобально)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch then
+		if activeInputId == nil or input.UserInputId == activeInputId then
+			dragging = false
+			activeInputId = nil
+			lastTouchPosition = nil
+		end
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if dragging then
+			dragging = false
+			activeInputId = nil
+			lastTouchPosition = nil
+		end
+	end
+end)
+
+-- Сохраняем позицию при движении пальца
+UserInputService.TouchMoved:Connect(function(touch)
+	if dragging and activeInputId and touch.UserInputId == activeInputId then
+		lastTouchPosition = touch.Position
+	end
+end)
+
+-- Привязываем начало к bar, knob и expandedHitbox
+for _, obj in ipairs({bar, knob, expandedHitbox}) do
+	obj.InputBegan:Connect(beginDrag)
+end
+
+-- Постоянно обновляем координаты во время перетаскивания
+RunService.RenderStepped:Connect(function()
+	if dragging then
+		local posX
+		if UserInputService.TouchEnabled and lastTouchPosition then
+			posX = lastTouchPosition.X
+		else
+			posX = Player:GetMouse().X
+		end
+		updateSlider(posX)
+	end
+end)
     
     ------------------------------------------------------------------
     -- Infinite Jump
