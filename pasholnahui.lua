@@ -1840,24 +1840,63 @@ radiusKnobCorner.CornerRadius = UDim.new(1, 0)
 radiusKnobCorner.Parent = radiusKnob
 
 local radiusActive = false
-radiusBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+local UserInputService = game:GetService("UserInputService")
+
+-- Создаём невидимую расширенную область для лучшего захвата
+local expandedRadiusHitbox = Instance.new("Frame")
+expandedRadiusHitbox.Size = UDim2.new(1, 40, 1, 40) -- Расширяем на 40 пикселей со всех сторон
+expandedRadiusHitbox.Position = UDim2.new(0, -20, 0, -20) -- Смещаем чтобы центрировать
+expandedRadiusHitbox.BackgroundTransparency = 1
+expandedRadiusHitbox.Parent = radiusBar
+
+-- Обработчики для расширенной области
+expandedRadiusHitbox.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
         radiusActive = true
     end
 end)
-radiusBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+-- Глобальное отслеживание завершения ввода
+local radiusInputEndedConnection
+radiusInputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
         radiusActive = false
+    end
+end)
+
+-- Переменная для хранения последней позиции касания
+local lastRadiusTouchPosition = nil
+
+UserInputService.TouchMoved:Connect(function(touch, gameProcessed)
+    if radiusActive then
+        lastRadiusTouchPosition = touch.Position
     end
 end)
 
 game:GetService("RunService").RenderStepped:Connect(function()
     if radiusActive then
-        local mouse = game:GetService("Players").LocalPlayer:GetMouse()
-        local relX = math.clamp((mouse.X - radiusBar.AbsolutePosition.X) / radiusBar.AbsoluteSize.X, 0, 1)
+        local posX
+        
+        -- Получаем позицию касания/мыши
+        if UserInputService.TouchEnabled and lastRadiusTouchPosition then
+            -- Для мобильных - используем сохранённую позицию касания
+            posX = lastRadiusTouchPosition.X
+        else
+            -- Для ПК - используем мышь
+            local mouse = game:GetService("Players").LocalPlayer:GetMouse()
+            posX = mouse.X
+        end
+        
+        local relX = math.clamp((posX - radiusBar.AbsolutePosition.X) / radiusBar.AbsoluteSize.X, 0, 1)
         local value = math.floor(minRadius + relX * radiusRange) -- новый диапазон 10–1000
+        
+        -- Сохраняем в _G и отправляем в chopSettings
         _G.ChopRadius = value
         chopSettings.detectionRadius = value
+        
+        -- Обновляем визуальные элементы
         radiusFill.Size = UDim2.new(relX, 0, 1, 0)
         radiusKnob.Position = UDim2.new(relX, -6, 0, -3)
         radiusLabel.Text = "Радиус: " .. value
