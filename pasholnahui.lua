@@ -1948,24 +1948,63 @@ maxTreesKnobCorner.CornerRadius = UDim.new(1, 0)
 maxTreesKnobCorner.Parent = maxTreesKnob
 
 local maxTreesActive = false
-maxTreesBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+local UserInputService = game:GetService("UserInputService")
+
+-- Создаём невидимую расширенную область для лучшего захвата
+local expandedMaxTreesHitbox = Instance.new("Frame")
+expandedMaxTreesHitbox.Size = UDim2.new(1, 40, 1, 40) -- Расширяем на 40 пикселей со всех сторон
+expandedMaxTreesHitbox.Position = UDim2.new(0, -20, 0, -20) -- Смещаем чтобы центрировать
+expandedMaxTreesHitbox.BackgroundTransparency = 1
+expandedMaxTreesHitbox.Parent = maxTreesBar
+
+-- Обработчики для расширенной области
+expandedMaxTreesHitbox.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
         maxTreesActive = true
     end
 end)
-maxTreesBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+-- Глобальное отслеживание завершения ввода
+local maxTreesInputEndedConnection
+maxTreesInputEndedConnection = UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
         maxTreesActive = false
+    end
+end)
+
+-- Переменная для хранения последней позиции касания
+local lastMaxTreesTouchPosition = nil
+
+UserInputService.TouchMoved:Connect(function(touch, gameProcessed)
+    if maxTreesActive then
+        lastMaxTreesTouchPosition = touch.Position
     end
 end)
 
 game:GetService("RunService").RenderStepped:Connect(function()
     if maxTreesActive then
-        local mouse = game:GetService("Players").LocalPlayer:GetMouse()
-        local relX = math.clamp((mouse.X - maxTreesBar.AbsolutePosition.X) / maxTreesBar.AbsoluteSize.X, 0, 1)
+        local posX
+        
+        -- Получаем позицию касания/мыши
+        if UserInputService.TouchEnabled and lastMaxTreesTouchPosition then
+            -- Для мобильных - используем сохранённую позицию касания
+            posX = lastMaxTreesTouchPosition.X
+        else
+            -- Для ПК - используем мышь
+            local mouse = game:GetService("Players").LocalPlayer:GetMouse()
+            posX = mouse.X
+        end
+        
+        local relX = math.clamp((posX - maxTreesBar.AbsolutePosition.X) / maxTreesBar.AbsoluteSize.X, 0, 1)
         local value = math.floor(1 + relX * 99)
+        
+        -- Сохраняем в _G и отправляем в chopSettings
         _G.ChopMaxTrees = value
         chopSettings.maxTrees = value
+        
+        -- Обновляем визуальные элементы
         maxTreesFill.Size = UDim2.new(relX, 0, 1, 0)
         maxTreesKnob.Position = UDim2.new(relX, -6, 0, -3)
         maxTreesLabel.Text = "Макс деревьев: " .. value
