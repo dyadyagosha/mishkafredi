@@ -3719,112 +3719,134 @@ end)
 	knobCorner.Parent = knob
 
     local minH, maxH = 0, 100
-local dragging = false
-local lastTouchPosition = nil
+	-- Переменные состояния
+	local dragging = false
+	local activeInputId = nil        -- для touch: идентификатор текущего касания
+	local lastTouchPosition = nil    -- последняя позиция касания
 
--- Создаём расширенную невидимую область вокруг бара
-local expandedHitbox = Instance.new("Frame")
-expandedHitbox.Size = UDim2.new(1, 40, 1, 40)
-expandedHitbox.Position = UDim2.new(0, -20, 0, -20)
-expandedHitbox.BackgroundTransparency = 1
-expandedHitbox.ZIndex = bar.ZIndex - 1 -- чтобы не перекрывал сам слайдер
-expandedHitbox.Parent = bar
+	-- Расширенная невидимая зона для удобства захвата
+	local expandedHitbox = Instance.new("Frame")
+	expandedHitbox.Size = UDim2.new(1, 40, 1, 40)
+	expandedHitbox.Position = UDim2.new(0, -20, 0, -20)
+	expandedHitbox.BackgroundTransparency = 1
+	expandedHitbox.Parent = bar
 
--- Применение высоты
-local function applyHeight()
-	local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-	if hum and _G.GodModeEnabled then
-		hum.HipHeight = _G.HipHeightValue
-	elseif hum then
-		hum.HipHeight = 0
+	-- Применение высоты персонажа
+	local function applyHeight()
+		local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+		if hum and _G.GodModeEnabled then
+			hum.HipHeight = _G.HipHeightValue
+		elseif hum then
+			hum.HipHeight = 0
+		end
 	end
-end
 
--- Обновление положения слайдера
-local function updateSlider(x)
-	local pos = bar.AbsolutePosition.X
-	local size = bar.AbsoluteSize.X
-	local pct = math.clamp((x - pos) / size, 0, 1)
+	-- Обновление положения слайдера по X
+	local function updateSlider(x)
+		if not bar or bar.AbsoluteSize.X == 0 then return end
 
-	fill.Size = UDim2.new(pct, 0, 1, 0)
-	knob.Position = UDim2.new(pct, -6, 0.5, -6)
+		local pos = bar.AbsolutePosition.X
+		local size = bar.AbsoluteSize.X
+		local pct = math.clamp((x - pos) / size, 0, 1)
 
-	_G.HipHeightValue = math.floor(minH + (maxH - minH) * pct)
-	heightLabel.Text = tostring(_G.HipHeightValue)
-	applyHeight()
-end
+		fill.Size = UDim2.new(pct, 0, 1, 0)
+		knob.Position = UDim2.new(pct, -6, 0.5, -6)
 
--- Устанавливаем начальное значение
-local initialPct = (_G.HipHeightValue - minH) / (maxH - minH)
-fill.Size = UDim2.new(initialPct, 0, 1, 0)
-knob.Position = UDim2.new(initialPct, -6, 0.5, -6)
-
--- Переключение GodMode
-gmToggle.MouseButton1Click:Connect(function()
-	_G.GodModeEnabled = not _G.GodModeEnabled
-	gmMark.Visible = _G.GodModeEnabled
-	gmToggle.BackgroundColor3 = _G.GodModeEnabled and CONFIG.Colors.Success or CONFIG.Colors.Border
-	applyHeight()
-end)
-
--- Начало перетаскивания
-local function beginDrag(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		ContentScroll.ScrollingEnabled = false
-		updateSlider(input.Position.X)
+		_G.HipHeightValue = math.floor(minH + (maxH - minH) * pct)
+		heightLabel.Text = tostring(_G.HipHeightValue)
+		applyHeight()
 	end
-end
 
--- Окончание перетаскивания
-local function endDrag(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+	-- Устанавливаем начальное значение визуально
+	local initialPct = (_G.HipHeightValue - minH) / (maxH - minH)
+	fill.Size = UDim2.new(initialPct, 0, 1, 0)
+	knob.Position = UDim2.new(initialPct, -6, 0.5, -6)
+
+	-- Toggle GodMode
+	gmToggle.MouseButton1Click:Connect(function()
+		_G.GodModeEnabled = not _G.GodModeEnabled
+		gmMark.Visible = _G.GodModeEnabled
+		gmToggle.BackgroundColor3 = _G.GodModeEnabled and CONFIG.Colors.Success or CONFIG.Colors.Border
+		applyHeight()
+	end)
+
+	-- Начало перетаскивания (на bar, knob и расширенной зоне)
+	local function beginDrag(input)
+		local t = input.UserInputType
+		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+			dragging = true
+			ContentScroll.ScrollingEnabled = false
+
+			if t == Enum.UserInputType.Touch then
+				activeInputId = input.UserInputId
+				lastTouchPosition = input.Position
+				updateSlider(input.Position.X)
+			else
+				-- мышь
+				activeInputId = nil
+				-- при GUI InputBegan иногда есть позиция, а иногда нет — защищаемся
+				local x = (input.Position and input.Position.X) or Player:GetMouse().X
+				updateSlider(x)
+			end
+		end
+	end
+
+	-- Глобальное окончание ввода: срабатывает только когда завершается наш activeInputId (для touch)
+	-- и для мыши при MouseButton1
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			-- завершаем только если это то самое касание
+			if activeInputId == nil or input.UserInputId == activeInputId then
+				dragging = false
+				activeInputId = nil
+				lastTouchPosition = nil
+				ContentScroll.ScrollingEnabled = true
+			end
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+			if dragging then
+				dragging = false
+				activeInputId = nil
+				lastTouchPosition = nil
+				ContentScroll.ScrollingEnabled = true
+			end
+		end
+	end)
+
+	-- Отслеживаем движение пальца и сохраняем последнюю позицию (только для нашего touch)
+	UserInputService.TouchMoved:Connect(function(touch)
+		if dragging and activeInputId and touch.UserInputId == activeInputId then
+			lastTouchPosition = touch.Position
+		end
+	end)
+
+	-- Привязываем начало перетаскивания к bar, knob и expandedHitbox
+	for _, obj in ipairs({bar, knob, expandedHitbox}) do
+		obj.InputBegan:Connect(beginDrag)
+		-- НЕ подключаем obj.InputEnded — чтобы уход за пределы GUI не прерывал перетаскивание
+	end
+
+	-- Обновление позиции каждый кадр — берём touch (если есть) или мышь
+	RunService.RenderStepped:Connect(function()
 		if dragging then
-			dragging = false
-			ContentScroll.ScrollingEnabled = true
+			local posX
+			if UserInputService.TouchEnabled and lastTouchPosition then
+				posX = lastTouchPosition.X
+			else
+				posX = Player:GetMouse().X
+			end
+			updateSlider(posX)
 		end
+	end)
+
+	-- При появлении персонажа применяем значение
+	Player.CharacterAdded:Connect(function()
+		task.wait(1)
+		applyHeight()
+	end)
+
+	_G.CurrentTabCleanup = function()
+		if fbConnection then fbConnection:Disconnect() end
 	end
-end
-
--- Подключаем события для бара, ручки и расширенной области
-for _, obj in ipairs({bar, knob, expandedHitbox}) do
-	obj.InputBegan:Connect(beginDrag)
-	obj.InputEnded:Connect(endDrag)
-end
-
--- Следим за перемещением пальца (Touch)
-UserInputService.TouchMoved:Connect(function(touch)
-	if dragging then
-		lastTouchPosition = touch.Position
-	end
-end)
-
--- Глобально отслеживаем завершение ввода
-UserInputService.InputEnded:Connect(endDrag)
-
--- Обновление в каждом кадре
-RunService.RenderStepped:Connect(function()
-	if dragging then
-		local posX
-		if UserInputService.TouchEnabled and lastTouchPosition then
-			posX = lastTouchPosition.X
-		else
-			local mouse = Player:GetMouse()
-			posX = mouse.X
-		end
-		updateSlider(posX)
-	end
-end)
-
--- Применяем высоту при появлении персонажа
-Player.CharacterAdded:Connect(function()
-	task.wait(1)
-	applyHeight()
-end)
-
-_G.CurrentTabCleanup = function()
-	if fbConnection then fbConnection:Disconnect() end
-end
 	------------------------------------------------------------------
     -- TP TO BASE 
     ------------------------------------------------------------------
